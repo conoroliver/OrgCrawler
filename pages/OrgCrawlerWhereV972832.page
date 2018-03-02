@@ -1,0 +1,245 @@
+<apex:page showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0" controller="OrgCrawlerStartController">
+           
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="x-ua-compatible" content="ie=edge" />
+        <title>WHERE Clause Creation Page</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        <!-- Import the Design System style sheet -->
+        <apex:slds />
+    </head>
+
+    <script type="text/javascript" src="{!URLFOR($Resource.JQuery)}"></script>
+    <body class="slds-align_absolute-center" style="margin:0;padding:10px; height: 100vh;">
+        <div  class="slds-scope" style="margin:0 auto; margin-top: 2.5%; padding: 10px; height: 85%; width: 90%; border-style: solid;  overflow-y: auto;" >
+        <div class="slds-page-header" id = "header"> <!-- OrgCrawler logo is accessed from a static resource and the name the user gave to the analysis run is retrieved from the controller query.    -->
+                <div class="slds-media">
+                    <div class="slds-media__figure">
+                        <svg class="slds-icon" aria-hidden="true">
+                            <apex:image url="{!$Resource.OrgCrawlerLogo}" style=" height: 30%; width: 30%;"/>
+                        </svg>
+                    </div>
+                    <div class="slds-media__body" style="margin-left: -15%">
+                        <h1 class="slds-page-header__title slds-truncate slds-align-left slds-text-heading_large" title="Analysis Result" style="font-size: 40px; padding-top:10px; font-weight:bold; ">Org Crawler</h1>
+                        <p class="slds-text-body_small slds-line-height_reset" style="padding-top: 8px; margin-left: 8%;">Where Builder</p>
+                    </div>
+                </div>
+            </div>
+    <apex:form >
+
+        <apex:actionFunction name="passToApex" action="{!finalQuery}" oncomplete="returnToCrawl();" rerender="none">
+            <apex:param value="" name="param2"/>
+        </apex:actionFunction>
+        <apex:actionFunction name="returnToCrawl" action="{!queryComplete}"/>
+
+            <div style="display:flex; padding-bottom: 5px;" id="frame"></div>
+            <div style="padding-bottom: 20px;">
+            <button class="stage1" type="button" onclick="addRow();">Add Row</button>
+            <button class="stage1" type="button" onclick="deleteRow();">Delete Row</button>
+            <button class="slds-hide add-logic" type="button" onclick="revealLogic();" id="input-button">addLogic</button>
+            <button class="pass-btn" type="button" onclick="passWhere();" id="input-button">Create Where Clause</button>
+            <div class="slds-hide logic">
+                <div class="slds-form-element" style = "width: 90%;">
+                    <div class="slds-form-element__control" style="padding: 5px;">
+                        <input type="text" id="logic-input" class="slds-input" placeholder="ex: (1 AND 2) OR 3"/>
+                    </div>
+                </div>
+                <button type="button" onclick="returnToEdit();" id="input-button">Edit Query</button>
+                <button type="button" onclick="passWhere();" id="input-button">Create Where Clause</button>
+            </div>
+            </div>
+
+        
+    </apex:form>
+    </div>
+    </body>
+    <script type="text/javascript">
+var Fields = {!ObjectFields};
+       var fieldChoices = '<option></option>';
+       for(var j = 0;j < Fields.length ; j++){
+           var choice = '<option>' + Fields[j] + '</option>';
+           fieldChoices += choice;
+       }
+
+var queryArr = [];
+
+function obtainInput(){
+    queryArr = [];
+    var currRow;
+    var currTable = document.getElementById('tbody');
+    var tableLength = currTable.rows.length;
+    for(var j = 0; j < tableLength ; j++){
+        var queryString = '';
+        currRow = document.getElementById('row'+j);
+        //console.log(currRow.attributes);
+        var selectedValue = document.getElementById("field-select-0"+j+"").options[document.getElementById("field-select-0"+j+"").selectedIndex].value;
+        var selectedOp = document.getElementById("op-select-0"+j+"").options[document.getElementById("op-select-0"+j+"").selectedIndex].value;
+        var inputText = document.getElementById('text-input-id-'+j+'').value;
+        queryString += selectedValue+' '+selectedOp+' '+inputText + ' ';
+        queryArr.push(queryString);
+    }
+}
+
+function makeTable(){
+
+   var tHeadOpen = '<table id="theTable" style="padding-bottom: 5px;" class="slds-table slds-table_bordered slds-table_cell-buffer"><thead><tr class="slds-text-title_caps"><th scope="col" style="width:20%; text-align:center;"><div id="field" class="slds-truncate" title="Field">';
+   var colOneTitle ='Field';
+   var colTwoStart = '</div></th><th scope="col" style="width:10%; text-align:center;"><div id="operator" class="slds-truncate" title="Operator">';
+   var colTwoTitle = 'Operator';
+   var colThreeStart = '</div></th><th scope="col" style="width:30%; text-align:center;"><div class="slds-truncate" title="Input">';
+   var colThreeTitle = 'Input';
+   var tHeadClose = '</div></th></th></tr></thead>';
+   var rows = '';
+   var maxID = 0;
+   var tBodyOpen = '<tbody id="tbody">';
+   var tHead = tHeadOpen + colOneTitle + colTwoStart + colTwoTitle + colThreeStart + colThreeTitle + tHeadClose + tBodyOpen;
+
+
+   rows = createRow(0);
+
+   var tBodyClose = '</tbody></table>';
+
+   document.getElementById('frame').innerHTML = tHead + rows + tBodyClose;
+}
+
+
+
+
+    function createRow(i){
+        var row = '';
+        var colItemOne = '<tr id = row'+i+'><th scope="row" data-label="Field"><div class="slds-truncate">';
+        var fieldOpen = '<div class="slds-form-element" style = "width: 90%;" ><label class="slds-form-element__label" for="field-select-0'+i+'">';
+        var fieldSelectOpen = '</label><div class="slds-form-element__control"><div class="slds-select_container"><select class="slds-select" id="field-select-0'+i+'" onchange="changeFunc();">';
+        var fieldSelectClose = '</select></div></div></div>';
+        var colItemTwo = '</div></th><td data-label="Operator"><div class="slds-truncate">';
+        var opOpen = '<div class="slds-form-element" style = "width: 90%;" ><label class="slds-form-element__label" for="op-select-0'+i+'">';
+        var opLabelClose = '</label><div class="slds-form-element__control"><div class="slds-select_container">';
+        var opSelectOpen = '<select class="slds-select" id="op-select-0'+i+'">';
+        var op = '<option></option>';
+        var equal = '<option> = </option>';
+        var greaterThan = '<option> > </option>';
+        var lessThan = '<option> < </option>';
+        var greaterThanEqual = '<option> >= </option>';
+        var lessThanEqual = '<option> <= </option>';
+        var notEqual = '<option> != </option>';
+        var like = '<option> LIKE </option>';
+        var opSelectClose = '</select></div></div></div>';
+        var colItemThree = '</div></td><td data-label="Input"><div class="slds-truncate">';
+        var inputHead = '<div class="slds-form-element" style = "width: 90%;"><label class="slds-form-element__label" for="text-input-id-'+i+'">';
+        var inputClose = '</label><div class="slds-form-element__control"><input type="text" id="text-input-id-'+i+'" class="slds-input" placeholder="Query Input"/></div></div>';
+        var colClose = '</div></td></tr>';
+
+        row +=  colItemOne + fieldOpen + fieldSelectOpen + fieldChoices + fieldSelectClose + colItemTwo + opOpen + opLabelClose + opSelectOpen + op + equal + greaterThan + lessThan + greaterThanEqual + lessThanEqual + notEqual + like + opSelectClose + colItemThree + inputHead + inputClose + colClose;
+        return row;
+    }
+
+    function createRow2(i){
+
+        var row = '';
+        var colItemOne = '<th scope="row" data-label="Field"><div class="slds-truncate">';
+        var fieldOpen = '<div class="slds-form-element" style = "width: 90%;" ><label class="slds-form-element__label" for="field-select-0'+i+'">';
+        var fieldSelectOpen = '</label><div class="slds-form-element__control"><div class="slds-select_container"><select class="slds-select" id="field-select-0'+i+'" onchange="changeFunc();">';
+        var fieldSelectClose = '</select></div></div></div>';
+        var colItemTwo = '</div></th><td data-label="Operator"><div class="slds-truncate">';
+        var opOpen = '<div class="slds-form-element" style = "width: 90%;" ><label class="slds-form-element__label" for="op-select-0'+i+'">';
+        var opLabelClose = '</label><div class="slds-form-element__control"><div class="slds-select_container">';
+        var opSelectOpen = '<select class="slds-select" id="op-select-0'+i+'">';
+        var op = '<option></option>';
+        var equal = '<option> = </option>';
+        var greaterThan = '<option> > </option>';
+        var lessThan = '<option> < </option>';
+        var greaterThanEqual = '<option> >= </option>';
+        var lessThanEqual = '<option> <= </option>';
+        var notEqual = '<option> != </option>';
+        var like = '<option> LIKE </option>';
+        var opSelectClose = '</select></div></div></div>';
+        var colItemThree = '</div></td><td data-label="Input"><div class="slds-truncate">';
+        var inputHead = '<div class="slds-form-element" style = "width: 90%;"><label class="slds-form-element__label" for="text-input-id-'+i+'">';
+        var inputClose = '</label><div class="slds-form-element__control"><input type="text" id="text-input-id-'+i+'" class="slds-input" placeholder="Query Input"/></div></div>';
+        var colClose = '</div></td>';
+
+        row +=  colItemOne + fieldOpen + fieldSelectOpen + fieldChoices + fieldSelectClose + colItemTwo + opOpen + opLabelClose + opSelectOpen + op + equal + greaterThan + lessThan + greaterThanEqual + lessThanEqual + notEqual + like + opSelectClose + colItemThree + inputHead + inputClose + colClose;
+        return row;
+    }
+
+function addRow()
+{
+    $('.add-logic').removeClass('slds-hide');
+    $('.pass-btn').addClass('slds-hide');
+
+    var currTable = document.getElementById('tbody');
+    var newRow = document.createElement("tr");
+    var tableLength = currTable.rows.length;
+    newRow.id = 'row' + tableLength;
+    newRow.innerHTML = createRow2(tableLength);
+    currTable.appendChild(newRow);
+}
+
+function deleteRow(row)
+    {
+        var currTable = document.getElementById('tbody');
+        var tableLength = currTable.rows.length - 1;
+        if(tableLength != 0){
+            var removeRow = '#row'+tableLength;
+            $( removeRow ).remove();
+            console.log(currTable.rows.length);
+            if(currTable.rows.length - 1 == 0){
+                console.log('here');
+                $('.add-logic').addClass('slds-hide');
+                $('.pass-btn').removeClass('slds-hide');
+            }
+        }
+    }
+
+function revealLogic() {
+    $('.logic').removeClass('slds-hide');
+    $('.stage1').addClass('slds-hide');
+    $('.add-logic').addClass('slds-hide');
+}
+
+function returnToEdit() {
+    $('.logic').addClass('slds-hide');
+    $('.stage1').removeClass('slds-hide');
+    $('.add-logic').removeClass('slds-hide');
+}
+
+function passWhere() {
+    obtainInput();
+    var logicString = document.getElementById('logic-input').value;
+    var chars = logicString.split('');
+    var foundQueryNum = 1;
+
+    for(var i = 0; i < chars.length; i++){
+        console.log(i + ' = i');
+        for(var j = 0; j < queryArr.length; j++){
+
+            if(chars[i] == j + 1){
+                chars[i] = queryArr[j];
+            }
+        }
+    }
+    console.log(queryArr[0]);
+    if(chars.length != 0){
+        passToApex(JSON.stringify(chars.join('')));
+    }
+
+
+    else{
+        console.log('in else');
+        passToApex(JSON.stringify(queryArr[0]));
+    }
+
+}
+
+
+function changeFunc() {
+    var selectBox = document.getElementById("field-select-00");
+    var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+    return selectedValue;
+   }
+
+makeTable();
+</script>
+
+</apex:page>

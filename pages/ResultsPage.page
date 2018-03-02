@@ -1,0 +1,253 @@
+<apex:page showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0" controller="ResultsPageController">
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge" />
+  <title>OrgCrawler Analysis Display</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Import the Design System style sheet -->
+  <apex:slds />
+</head>
+    <script type="text/javascript" src= "{!URLFOR($Resource.JQuery)}"></script>
+    <script type="text/javascript" src="{!URLFOR($Resource.CollapseJS)}"></script>
+    <script type="text/javascript" src="{!URLFOR($Resource.EasingJS)}"></script>
+
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css"/>
+    <apex:stylesheet value="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css"/>
+    <script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
+
+<body style="margin:0;padding:10px;">
+
+  <div class="slds-scope" style="width: 100 vh; height: 50 vh;">
+          
+        <div class="slds-page-header" id = "header"> <!-- Revature logo is accessed from a static resource and the name the user gave to the analysis run is retrived from the controller query.    -->
+            <div class="slds-media">
+    <div class="slds-media__figure">
+        <svg class="slds-icon" aria-hidden="true">
+            <apex:image url="{!$Resource.OrgCrawlerLogo}" style=" height: 30%; width: 30%;"/>
+        </svg>
+    </div>
+    <div class="slds-media__body" style="margin-left: -15%">
+      <h1 class="slds-page-header__title slds-truncate slds-align-middle slds-text-heading_large" title="Analysis Result" 
+          style="font-size: 40px; padding-top:10px; font-weight:bold;">
+      Analysis: {!Analyze.Name}</h1>
+      <p class="slds-text-body_small slds-line-height_reset">{!analyzeUser.name} • OrgCrawler •{!createdStr}</p>
+
+    </div>
+  </div>
+           <!-- <apex:image url="{!$Resource.RevatureLogoOrange}" style=" height: 100px; width: 175px; padding-left: 10px; padding-top: 10px; padding-right: 50px;"/>
+           Analysis Name: {!Analyze.Name}<br></br> --></div>
+      <div class="slds-grid">  
+        <div class="slds-size_1-of-6 slds-scrollable" id = "tree" style="height:65vh;"> <!-- Holds the collapsable list of Object names.    -->
+            <apex:form >  <!-- Apex form tag is need to use the repeat tag. -->
+                <ul style="list-style:none;">
+                    <apex:repeat value="{!RObj}" var="mapKey">    <!-- Iterates through the RObj list passed in from the controller. -->
+                    <apex:commandLink styleClass="slds-text-link" value="{!mapKey.name}" rerender="result"
+                        style="font-weight:bold; font-size: 20px;" onclick="makeTable('{!mapKey.Id}')"/><br></br>
+                    </apex:repeat>
+                </ul>
+                <div class="slds-docked-form-footer">
+                    <apex:commandButton value="Back to Homepage" styleClass="slds-button slds-button_neutral" action="{!goHome}"/>
+                </div>
+            </apex:form>
+        </div>
+        <div class="slds-size_5-of-6 slds-scrollable" style="height:75vh; padding-top:15px; padding-left:20px">
+            <div class="slds-hide canHide">
+            <style>
+                .ct-bar{              
+                    stroke-width: 20px;
+                   }
+          
+                  .ct-chart-bar .ct-label.ct-horizontal.ct-end {
+                  display: block;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                  transform: rotate(-30deg);
+                  transform-origin: 100% 0;
+                  text-align: right;
+                  max-height: 1.5em;
+                  min-width: 100px;
+                  max-width: 100px;
+                }
+                
+            </style>
+                <h1 style="text-align: center;">Non-Zero Populated Percentages for All Fields</h1>
+                <div  class="ct-chart" style="height: 70vh"></div>
+            </div>
+            <h3 class="no-data slds-hide" style="font-size: 200%">This object has no records!</h3>
+            <div id="result"></div>
+        </div>
+    </div>
+
+  </div>
+</body>
+
+    <script type="text/javascript">
+        <!--Used to create collapsable list items-->
+        $(function () {
+            $('#collapser').jqcollapse({
+                slide: true,
+                speed: 500,
+                easing: 'easeOutCubic'
+            });
+        });
+
+        function rmHide()
+        {
+            $('.no-data').addClass('slds-hide');
+            $('.canHide').removeClass('slds-hide');
+            console.log("removed");
+        }
+
+        function noData()
+        {
+            addHide();
+            $('.no-data').removeClass('slds-hide');
+            console.log("noData");
+        }
+
+        function addHide()
+        {
+            $('.canHide').addClass('slds-hide');
+            $('.no-data').addClass('slds-hide');
+            console.log("added");
+        }
+
+
+        <!--Used to store Object IDs to create tables-->
+        var lastObject = null;
+
+        function makeObject(fields, percents){
+            var data = {
+                labels: fields,
+                series: [
+                    percents
+                ]
+            };
+            var options = {
+              
+                axisY: {
+                    onlyInteger: true,
+                    scaleMinSpace: 8
+                },
+                axisX: {
+                    showGrid: false,
+                  offset: 70
+                },
+            };
+            Chartist.Bar('.ct-chart', data, options).on('draw', function(data){
+                if(data.type === 'label'){
+                    // adjust position x on rotated labels on x axis
+                    if(fields.includes(data.text)){
+                        const dX = data.width / 2 + (100 - data.width);
+                        data.element.attr({ x: data.element.attr('x') - dX });
+                    }
+                }
+            });
+        }
+
+
+        function makeTable(API)
+        {
+
+
+            var ObjId = API;
+            var Obj = {!JSONstring}; <!--Stores the JSON string from the controller-->
+
+
+            <!-- Variables to store the column headers to be passed into each table creation. -->
+
+           var thead ='<table class="slds-table slds-table_bordered slds-table_cell-buffer slds-table_striped"><tr class="slds-text-title_caps">'+
+                '<th class="slds-text-title_caps">API Name</th><th class="slds-text-title_caps">Field Name</th><th class="slds-text-title_caps">Last Modified</th>'+
+                '<th class="slds-text-title_caps">Percent Populated</th><th class="slds-text-title_caps">Number Populated</th></tr>';
+
+            var tbody = '';
+            var tfoot = '</table>';
+
+            <!-- This will loop through each object ID in the JSON string. -->
+
+            var fieldList = [];
+            var popList = [];
+            var hasPopulated = false;
+
+            if(lastObject != ObjId)
+            {
+                if(Obj.length === 0)
+                {
+                    noData();
+                }
+
+                else
+                {
+                    for(var i = 0;i < Obj.length; i++)
+                    {
+
+
+                        if(Obj[i].Id == ObjId)
+                        {
+
+                            lastObject = ObjId;
+                            ttitle = '';
+                            ttitle ='<h2 style="font-size: 20px; font-weight:bold;">'+ Obj[i].Name + '</h1>';
+                            tbody += ttitle + thead;
+
+                            <!--     For each ID in RenderList the related FieldInfo records are chosen     -->
+                            <!--     and passed into the tbody string for table creation.                   -->
+
+                            for(var j = 0; j < Obj[i].FieldInfo__r.totalSize; j++)
+                            {
+                                //
+                                if(Obj[i].FieldInfo__r.records[j].Percent_Populated__c != 0)
+                                {
+                                    fieldList.push(Obj[i].FieldInfo__r.records[j].Label__c);
+                                    popList.push(Obj[i].FieldInfo__r.records[j].Percent_Populated__c);
+                                    if(Obj[i].FieldInfo__r.records[j].Percent_Populated__c != 0)
+                                    {
+                                        hasPopulated = true;
+                                    }
+                                }
+                                tbody+='<tr>';
+                                tbody+='<td>';
+                                tbody+=Obj[i].FieldInfo__r.records[j].Name;
+                                tbody+='</td>';
+                                tbody+='<td>';
+                                tbody+=Obj[i].FieldInfo__r.records[j].Label__c;
+                                tbody+='</td>';
+                                tbody+='<td>';
+                                tbody+='<a href=https://na59.salesforce.com/'+Obj[i].FieldInfo__r.records[j].Last_Modified_Record__c+' target="_blank" >View Record</a>';
+                                tbody+='</td>';
+                                tbody+='<td style=" text-align:center;">';
+                                tbody+=(Obj[i].FieldInfo__r.records[j].Percent_Populated__c).toFixed(2)+'%';
+                                tbody+='</td>';
+                                tbody+='<td style="text-align:center;">';
+                                tbody+=Obj[i].FieldInfo__r.records[j].Populated_Number__c;
+                                tbody+='</td>';
+                                tbody+='</tr>';
+                            }
+                            tbody+='</table>';
+                        }
+                    }
+                }
+                if(hasPopulated === true){
+                    makeObject(fieldList, popList);
+                    rmHide();
+                }
+                else{
+                    noData();
+                }
+            }
+            else{
+                lastObject = null;
+                addHide();
+            }
+            <!-- Selects the div with Id=resutl and passes in the tbody string to be rendered.-->
+
+            document.getElementById('result').innerHTML=tbody;
+        };
+
+
+    </script>
+
+</apex:page>

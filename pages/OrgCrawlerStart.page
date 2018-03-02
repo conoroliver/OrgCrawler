@@ -1,0 +1,208 @@
+<apex:page showHeader="false" standardStylesheets="false" sidebar="false" applyHtmlTag="false" applyBodyTag="false" docType="html-5.0" controller="OrgCrawlerStartController">
+
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="x-ua-compatible" content="ie=edge" />
+        <title>OrgCrawler Creation Page</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        <!-- Import the Design System style sheet -->
+        <apex:slds />
+    </head>
+
+    <script type="text/javascript" src="{!URLFOR($Resource.JQuery)}"></script>
+    <script type="text/javascript" src="{!URLFOR($Resource.CollapseJS)}"></script>
+    <script type="text/javascript" src="{!URLFOR($Resource.EasingJS)}"></script>
+
+    <body style="margin:0;padding:10px;">
+    <div class="slds-scope">
+        <apex:form >
+            <apex:actionFunction name="crawl" action="{!runBatch}" reRender="none" oncomplete="redirect('{!aI.Id}','{!queryName}')">
+                <apex:param name="param1" value="" />
+            </apex:actionFunction>
+            
+            <apex:actionFunction name="where" action="{!step2}"  >
+                
+            </apex:actionfunction>
+            
+            <apex:actionFunction name="queryPage" oncomplete="where();" rerender="view" >
+                <apex:param name="queryObj" value="" assignTo="{!queryObject}"/>
+                <apex:param name="selectList" value="" assignTo="{!selectedQueryObjectJSON}"/>
+            </apex:actionfunction>
+            <apex:actionFunction name="passList" rerender="view">
+                <apex:param name="selectList" value="" assignTo="{!selectedQueryObjectJSON}"/>
+            </apex:actionfunction>
+
+            <!--Header-->
+            <div class="slds-page-header" id = "header"> <!-- OrgCrawler logo is accessed from a static resource and the name the user gave to the analysis run is retrieved from the controller query.    -->
+                <div class="slds-media">
+                    <div class="slds-media__figure">
+                        <svg class="slds-icon" aria-hidden="true">
+                            <apex:image url="{!$Resource.OrgCrawlerLogo}" style=" height: 30%; width: 30%;"/>
+                        </svg>
+                    </div>
+                    <div class="slds-media__body" style="margin-left: -15%">
+                        <h1 class="slds-page-header__title slds-truncate slds-align-left slds-text-heading_large" title="Analysis Result" style="font-size: 40px; padding-top:10px; font-weight:bold; ">Org Crawler</h1>
+                        <p class="slds-text-body_small slds-line-height_reset">{!$User.FirstName} {!$User.LastName} • OrgCrawler •{!NOW()}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!--Name Div-->
+            <div class="slds-grid slds-grid_vertical-align-start">
+                <div id="nameHolder">
+                    <!--Limit the size of this input box-->
+                    <h1 style="font-size:150%">Name:</h1>
+                    <apex:inputText value="{!queryName}" styleClass="slds-input width: 10%;" alt="Query Name"/>
+                </div>
+            </div>
+
+            <!--Filtered Column-->
+            <div class="slds-grid slds-grid_align-center" style="height:80vh">
+                <div id="filterColumn" class="slds-size_1-of-2">
+                    <div id="queryBar">
+                        <b style="font-size:150%">Search: </b>
+                        <input class="slds-input" style="width:50%;" id="query" value="" onkeyup="setTimer()"/>
+                    </div>
+                    <div id="filteredList" style="height: 60vh; float:left; font-size: 200%"
+                         class="slds-scrollable slds-border_right">
+                             </div>
+                </div>
+
+                <!--Selected Column-->
+                <div class="slds-size_1-of-2 slds-scrollable slds-border_right " style="float:left; padding-left: 15px;"
+                     id="container">
+                    <h3 style="font-size:150%">You have selected:</h3>
+                    <div class="slds-scrollable" style="font-size:200%; height: 64vh; padding-bottom: 10px">
+                        <div id="selList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!--Footer-->
+            <div class="slds-docked-form-footer">
+                <apex:commandButton value="Crawl" styleClass="slds-button slds-button_neutral" onclick="return startCrawler()"/>
+                <apex:commandButton value="Back to Homepage" styleClass="slds-button slds-button_neutral" action="{!goHome}"/>
+            </div>
+        </apex:form>
+    </div>
+    </body>
+
+
+
+    <script>
+        var timer;
+        var selectedLst = [];
+        if('{!selectedQueryObjectJSON}' != '') selectedLst = JSON.parse('{!selectedQueryObjectJSON}');
+        var allObjs = JSON.parse('{!JSONlstObj}');
+        var filterLst = allObjs;
+        var noFilterHTML = initialHTML();
+
+        //used to give a slight delay before querying to cut down on the number of times updateFilteredObjs is called
+        function setTimer(){
+            if(timer) {
+                clearTimeout(timer);
+            }
+            timer = setTimeout("updateFilteredObjs()",500);
+        }
+
+        function redirect(infoId, queryname) {
+         if(queryname){
+            window.parent.location = '/' + infoId;;
+         }
+         else{
+            alert('Please enter a query name!');
+         }
+        }
+
+        function selectObjs(name){
+            var doc = document.getElementById("selList");
+            doc.innerHTML = "";
+
+            //used to check to see if the object has been selected or not
+            var index = selectedLst.indexOf(name);
+            var sel = (index > -1);
+
+            if(name !== undefined) {
+                if(!sel) {
+                    selectedLst.push(name);
+                }
+                else {
+                    selectedLst.splice(index,1);
+                }
+            }
+
+            //add the value to the selected list
+            doc.innerHTML += "<ul>";
+            console.log(selectedLst);
+            for(var i = 0; i < selectedLst.length; i++){
+                doc.innerHTML += '<li>' + selectedLst[i] + '  <button type="button" class="slds-button slds-button_neutral" onclick="queryPageJS(\'' + i + '\');" >Create WHERE</button></li>';
+            }
+            doc.innerHTML += "</ul>";
+        }
+        
+        function queryPageJS(ind){
+            
+            console.log(ind);
+            
+            queryPage(selectedLst[ind],JSON.stringify(selectedLst));
+        }
+
+        function updateFilteredObjs(){
+            filterLst = [];
+            var doc = document.getElementById("filteredList");
+            doc.innerHTML = "";
+            var currQuery = document.getElementById("query").value.toLowerCase();
+
+            //if there is no query, add everything to the filterList
+            if(currQuery === undefined || currQuery.length == 0){
+                filterLst = allObjs;
+                doc.innerHTML = noFilterHTML;
+                //used to check if the value was selected
+                for(var k = 0; k < filterLst.length; k++){
+                    if(selectedLst.indexOf(filterLst[k]) !== -1){
+                        document.getElementById('cb' + k).checked = true;
+                    }
+                }
+                return;
+            }
+            //else only add the values that contain the query
+            else{
+                for(var i = 0; i < allObjs.length; i++){
+                    if(allObjs[i].toLowerCase().indexOf(currQuery) !== -1) filterLst.push(allObjs[i]);
+                }
+            }
+            for(var j = 0; j < filterLst.length; j++){
+                //check boolean to see if the value is selected
+                var checker = (selectedLst.indexOf(filterLst[j]) !== -1);
+                if(!checker){
+                    doc.innerHTML += '<input id="cb' + j + '" style="zoom:1.25" type="checkbox" class="custom-checkbox" onclick="selectObjs(\'' + filterLst[j] + '\')" />';
+                }
+                else{
+                    doc.innerHTML += '<input id="cb' + j + '" style="zoom:1.25" type="checkbox" class="custom-checkbox" onclick="selectObjs(\'' + filterLst[j] + '\')" checked />';
+                }
+                doc.innerHTML += '<label class="slds-checkbox__label">' + filterLst[j] + '</label></br>';
+            }
+        }
+
+        function startCrawler() {
+            //calls an actionFunction to start the crawler
+            crawl(JSON.stringify(selectedLst));
+            return false;
+        }
+
+        function initialHTML(){
+            //function used to build the initial HTML of the page to lower load times when the query is empty
+            var ret = "";
+            for(var j = 0; j < filterLst.length; j++){
+                ret += '<input id="cb' + j + '" style="zoom:1.25" type="checkbox" class="custom-checkbox" onclick="selectObjs(\'' + filterLst[j] + '\')" />';
+                ret += '<label class="slds-checkbox__label">' + filterLst[j] + '</label></br>';
+            }
+            return ret;
+        }
+
+        //called to populated the first column on the page on startup
+        updateFilteredObjs();
+        selectObjs();
+    </script>
+</apex:page>
